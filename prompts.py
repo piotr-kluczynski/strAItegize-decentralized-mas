@@ -2,7 +2,7 @@ from typing import Optional
 
 from strAItegize_common.others.order import Order, describe_order
 
-def unit_agent_prompt(player_id: str, unit_id: str, units: dict[str, Optional[Order]], regions: list[str]) -> str:
+def unit_agent_prompt(player_id: str, unit_id: str, unit_orders: dict[str, Optional[Order]], regions: list[str]) -> str:
     unit_instructions = f""" 
     You are one of the units, part of the military forces of a country within the simulation.
     You have authority only over your own unit and are responsible for managing its actions and decisions.
@@ -29,7 +29,7 @@ def unit_agent_prompt(player_id: str, unit_id: str, units: dict[str, Optional[Or
     Your country consists out of the following Unit Agents, alongside their current decisions:
     """
 
-    for unit, order in units.items():
+    for unit, order in unit_orders.items():
         order_desc = describe_order(order) if order else "no move planned yet"
         unit_instructions += f"- {unit}: {order_desc}\r\n"
 
@@ -62,6 +62,8 @@ def unit_agent_prompt(player_id: str, unit_id: str, units: dict[str, Optional[Or
     **CRITICAL Do not confuse activity with progress. Additional observations, reflections, or messages should only be performed when they can meaningfully improve your decision or execution.**
     </Instructions>
     """
+
+    return unit_instructions
 
 def unit_agent_msg_prompt(sender: str, content: str) -> str:
     return f"""

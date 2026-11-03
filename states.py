@@ -42,5 +42,5 @@ class UnitOutputState(TypedDict):
 
     messages_to_send: List[UnitAgentMessage]
 
-    order_list: List[Order] = []
+    unit_orders: dict[str, Order]
     recruitment_choice_list: List[RecruitmentChoice] = []

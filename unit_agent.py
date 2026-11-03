@@ -9,7 +9,9 @@ from prompts import unit_agent_prompt
 from tools import UnitAgentMessage, get_unit_tools
 
 from strAItegize_common.others.human import human
-from strAItegize_common.others.order import Order, RecruitmentChoice
+from strAItegize_common.others.order import Order
+from strAItegize_common.others.recruitment_choice import RecruitmentChoice
+from strAItegize_common.client.communication.communication_context import CommunicationContext
 
 HUMAN_MODE = False
 
@@ -41,11 +43,12 @@ def input_node(state: UnitInputState) -> UnitState:
     return {
         "units": state["units"],
         "regions": state["regions"],
+        "unit_id": state["unit_id"],
         "player_id": state["player_id"],
         "recent_events": state["recent_events"],
         "unit_messages": state["unit_messages"],
         "messages_to_send": [],
-        "order_list": state["order_list"],
+        "unit_orders": state["unit_orders"],
         "recruitment_choice_list": state["recruitment_choice_list"]
     }
 
@@ -53,8 +56,8 @@ def unit(state: UnitState) -> UnitState:
     return {
         "unit_messages": [
             model.bind_tools(available_unit_tools).invoke(
-                [SystemMessage(content=unit_agent_prompt(state["player_id"], state["generals_units"], state["regions"]))] + state["unit_messages"],
-                config={""}
+                [SystemMessage(content=unit_agent_prompt(player_id=state["player_id"], unit_id=state["unit_id"], unit_orders=state["unit_orders"], regions=state["regions"]))] + state["unit_messages"],
+                config={}
             )
         ]
     }
@@ -63,7 +66,7 @@ def human_unit(state: UnitState) -> UnitState:
     return {
         "unit_messages":
             human(
-                [SystemMessage(content=unit_agent_prompt(state["player_id"], state["unit_id"], {unit: state["order_list"].get(unit) for unit in state["units"]}, state["regions"]))] + state["unit_messages"],
+                [SystemMessage(content=unit_agent_prompt(player_id=state["player_id"], unit_id=state["unit_id"], unit_orders=state["unit_orders"], regions=state["regions"]))] + state["unit_messages"],
                 agent_name=state["unit_id"],
                 tools=available_unit_tools
             )
@@ -89,6 +92,7 @@ def tool_node(state: UnitState) -> UnitState:
                 move_s=move_s
             )
             state["unit_orders"][state["unit_id"]] = new_order
+            observations.append(f"Your next action was assigned properly: you will move by the movement vector: ({move_q}, {move_r}, {move_s}).")
         elif tool.name == "OrderAttack":
             target_id = tool_call["args"]["target_id"]
             
@@ -98,6 +102,7 @@ def tool_node(state: UnitState) -> UnitState:
                 target_id=target_id
             )
             state["unit_orders"][state["unit_id"]] = new_order
+            observations.append(f"Your next action was assigned properly: you will attempt to attack the {target_id} unit.")
         elif tool.name == "OrderSupport":
             target_id = tool_call["args"]["target_id"]
             
@@ -107,12 +112,14 @@ def tool_node(state: UnitState) -> UnitState:
                 target_id=target_id
             )
             state["unit_orders"][state["unit_id"]] = new_order
+            observations.append(f"Your next action was assigned properly: you will attempt to support the {target_id} unit.")
         elif tool.name == "OrderHold":
             new_order = Order(
                 order_type="hold",
                 unit_id=state["unit_id"]
             )
             state["unit_orders"][state["unit_id"]] = new_order
+            observations.append(f"Your next action was assigned properly: you will hold your current position.")
         elif tool_call["name"] == "RecruitUnit":
             recruitment_choice = tool_call["args"]["recruitment_choice"]
 
@@ -132,6 +139,7 @@ def tool_node(state: UnitState) -> UnitState:
                 sendee=sendee,
                 content=content
             ))
+            observations.append(f"Message sent to unit {sendee}: '{content}'")
         else:
             # Injecting state schema if needed
             args = {**tool_call["args"]}
@@ -158,29 +166,25 @@ def output_node(state: UnitState) -> UnitOutputState:
     return UnitOutputState(
         unit_messages=state["unit_messages"],
         messages_to_send=state["messages_to_send"],
-        order_list=list(state["unit_orders"].values()),
+        order_list=state["unit_orders"],
         recruitment_choice_list=state["recruitment_choice_list"]
     )
 
 def should_continue(state: UnitState) -> Literal["tool_node", "output_node"]:
-    unit_messages = state["unit_messages"]
-    last_message = unit_messages[-1]
-
-    tool_calls = last_message.tool_calls
+    last_message = state["unit_messages"][-1]
 
     if last_message.tool_calls:
-        if "MessageAgent" not in [tool_calls['name'] for tool_call in tool_calls]:
             return "tool_node"
     return "output_node"
 
-def get_unit_agent(communication, human_mode=False):
+def get_unit_agent(communication: CommunicationContext, human_mode=False):
     global HUMAN_MODE, unit_tools
 
     # Setting up the tool set
-    unit_tools = get_unit_tools(communication)
+    unit_tools = get_unit_tools(communication=communication)
 
     # Graph construction
-    unit_agent_builder = StateGraph(UnitState, input_schema=UnitInputState)
+    unit_agent_builder = StateGraph(UnitState, input_schema=UnitInputState, output_schema=UnitOutputState)
 
     unit_agent_builder.add_node("input_node", input_node)
     unit_agent_builder.add_node("tool_node", tool_node)

@@ -1,9 +1,11 @@
-from pydantic import BaseModel
-from typing import Field, Annotated
+from pydantic import BaseModel, Field
+from typing import Annotated
 from langchain.tools import InjectedState
-from langchain_core.tools import tool, InjectedState
+from langchain_core.tools import tool
 
+from strAItegize_common.client.communication.communication_context import CommunicationContext
 from strAItegize_common.others.recruitment_choice import RecruitmentChoice
+from strAItegize_common.client.tools import get_generic_tools
 
 class UnitAgentMessage(BaseModel):
     sender: str = Field(
@@ -17,7 +19,7 @@ class UnitAgentMessage(BaseModel):
     )
 
 # Unit-Agent Tools
-def get_unit_tools() -> list:
+def get_unit_tools(communication: CommunicationContext) -> list:
     @tool
     class MessageAgent(BaseModel):
         """Data class defining a message to be sent to another agent."""
@@ -89,3 +91,5 @@ def get_unit_tools() -> list:
             observation = "There've been no events since the last round."
 
         return observation
+
+    return [MessageAgent, OrderMovement, OrderAttack, OrderSupport, OrderHold, RecruitUnit, get_recent_events] + get_generic_tools(communication=communication)
