@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Annotated
+from typing import Annotated, Literal
 from langchain.tools import InjectedState
 from langchain_core.tools import tool
 
@@ -7,7 +7,7 @@ from strAItegize_common.client.communication.communication_context import Commun
 from strAItegize_common.others.recruitment_choice import RecruitmentChoice
 from strAItegize_common.client.tools import get_generic_tools
 
-class UnitAgentMessage(BaseModel):
+class AgentMessage(BaseModel):
     sender: str = Field(
         description="Unit Agent ID of the sender agent."
     )
@@ -17,6 +17,48 @@ class UnitAgentMessage(BaseModel):
     content: str = Field(
         description="Text message from the sender to the sendee."
     )
+
+# Region-Agent Tools
+def get_region_tools(communication: CommunicationContext) -> list:
+    @tool
+    class MessageAgent(BaseModel):
+        """Data class defining a message to be sent to another agent."""
+        sendee: str = Field(
+            description="The identifier of the agent receiving the message."
+        )
+
+        content: str = Field(
+            description="The content of the message sent to the sendee."
+        )
+    
+    @tool
+    class RecruitUnit(BaseModel):
+        """Tool for adding a recruitment choice to the recruitment list."""
+        unit_type: Literal["light_infantry", "heavy_infantry", "cavalry"] = Field(
+            description="Type of unit to recruit in the chosen region."
+        )
+
+    @tool
+    def get_recent_events(state: Annotated[dict, InjectedState]) -> str:
+        """Read the list of all events that took place this round.
+    
+        Returns:
+            The list of events from this round.    
+        """
+        events = state["recent_events"]
+    
+        # Formatting the tool output to be more readable for the LLM
+        if len(events) > 0:
+            observation = "Events that had occurred on this round:\r\n"
+            for event in events:
+                observation += f"- {event},"
+            observation += "."
+        else:
+            observation = "There've been no events since the last round."
+    
+        return observation
+
+    return [MessageAgent, RecruitUnit, get_recent_events] + get_generic_tools(communication=communication)
 
 # Unit-Agent Tools
 def get_unit_tools(communication: CommunicationContext) -> list:
@@ -66,13 +108,6 @@ def get_unit_tools(communication: CommunicationContext) -> list:
         pass
 
     @tool
-    class RecruitUnit(BaseModel):
-        """Tool for adding a recruitment choice to the recruitment list."""
-        recruitment_choice: RecruitmentChoice = Field(
-            description="The choice of where to recruit which type of unit."
-        )
-
-    @tool
     def get_recent_events(state: Annotated[dict, InjectedState]) -> str:
         """Read the list of all events that took place this round.
 
@@ -92,4 +127,4 @@ def get_unit_tools(communication: CommunicationContext) -> list:
 
         return observation
 
-    return [MessageAgent, OrderMovement, OrderAttack, OrderSupport, OrderHold, RecruitUnit, get_recent_events] + get_generic_tools(communication=communication)
+    return [MessageAgent, OrderMovement, OrderAttack, OrderSupport, OrderHold, get_recent_events] + get_generic_tools(communication=communication)

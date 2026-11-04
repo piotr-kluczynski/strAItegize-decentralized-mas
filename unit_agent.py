@@ -1,16 +1,14 @@
 from typing import Literal
-from pydantic import ValidationError
 from langchain.chat_models import init_chat_model
 from langchain.messages import SystemMessage, ToolMessage
 from langgraph.graph import StateGraph, START, END
 
 from states import UnitInputState, UnitState, UnitOutputState
 from prompts import unit_agent_prompt
-from tools import UnitAgentMessage, get_unit_tools
+from tools import AgentMessage, get_unit_tools
 
 from strAItegize_common.others.human import human
 from strAItegize_common.others.order import Order
-from strAItegize_common.others.recruitment_choice import RecruitmentChoice
 from strAItegize_common.client.communication.communication_context import CommunicationContext
 
 HUMAN_MODE = False
@@ -32,11 +30,10 @@ def input_node(state: UnitInputState) -> UnitState:
 
     # Dynamically reducing tools if invokation happened as result of the unit recruitment process
     available_unit_tools = unit_tools
-    
+
+    # During upkeep phase, the unit agent does not make any decisions, but responds to region agents messages
     if state["upkeep_phase"]:
         available_unit_tools = [tool for tool in unit_tools if tool.name not in ["OrderMovement", "OrderAttack", "OrderSupport", "OrderHold", "get_recent_events"]]
-    else: 
-        available_unit_tools = [tool for tool in unit_tools if tool.name != "RecruitUnit"]
 
     tools_by_name = {tool.name: tool for tool in available_unit_tools}
 
@@ -49,14 +46,13 @@ def input_node(state: UnitInputState) -> UnitState:
         "unit_messages": state["unit_messages"],
         "messages_to_send": [],
         "unit_orders": state["unit_orders"],
-        "recruitment_choice_list": state["recruitment_choice_list"]
     }
 
 def unit(state: UnitState) -> UnitState:
     return {
         "unit_messages": [
             model.bind_tools(available_unit_tools).invoke(
-                [SystemMessage(content=unit_agent_prompt(player_id=state["player_id"], unit_id=state["unit_id"], unit_orders=state["unit_orders"], regions=state["regions"]))] + state["unit_messages"],
+                state["unit_messages"] + [SystemMessage(content=unit_agent_prompt(player_id=state["player_id"], unit_id=state["unit_id"], unit_orders=state["unit_orders"], regions=state["regions"]))],
                 config={}
             )
         ]
@@ -66,7 +62,7 @@ def human_unit(state: UnitState) -> UnitState:
     return {
         "unit_messages":
             human(
-                [SystemMessage(content=unit_agent_prompt(player_id=state["player_id"], unit_id=state["unit_id"], unit_orders=state["unit_orders"], regions=state["regions"]))] + state["unit_messages"],
+                state["unit_messages"] + [SystemMessage(content=unit_agent_prompt(player_id=state["player_id"], unit_id=state["unit_id"], unit_orders=state["unit_orders"], regions=state["regions"]))],
                 agent_name=state["unit_id"],
                 tools=available_unit_tools
             )
@@ -120,26 +116,16 @@ def tool_node(state: UnitState) -> UnitState:
             )
             state["unit_orders"][state["unit_id"]] = new_order
             observations.append(f"Your next action was assigned properly: you will hold your current position.")
-        elif tool_call["name"] == "RecruitUnit":
-            recruitment_choice = tool_call["args"]["recruitment_choice"]
-
-            # Casting recruitment choice to the appropriate pydantic model
-            try:
-                recruitment_choice = RecruitmentChoice.model_validate(recruitment_choice)
-                state["recruitment_choice"].append(recruitment_choice)
-                observations.append(f"Unit recruitment choice: {recruitment_choice.region}(region): {recruitment_choice.unit_type}(unit type) was successfuly added to the list.")
-            except ValidationError as e:
-                observations.append(f"Invalid input data provided for tool: {tool_call["name"]}. \r\nDetails: {e.errors()}")
         elif tool_call["name"] == "MessageAgent":
             sendee = tool_call["args"]["sendee"]
             content = tool_call["args"]["content"]
 
-            state["messages_to_send"].append(UnitAgentMessage(
+            state["messages_to_send"].append(AgentMessage(
                 sender=state["unit_id"],
                 sendee=sendee,
                 content=content
             ))
-            observations.append(f"Message sent to unit {sendee}: '{content}'")
+            observations.append(f"Message sent to agent {sendee}: '{content}'")
         else:
             # Injecting state schema if needed
             args = {**tool_call["args"]}
@@ -166,8 +152,7 @@ def output_node(state: UnitState) -> UnitOutputState:
     return UnitOutputState(
         unit_messages=state["unit_messages"],
         messages_to_send=state["messages_to_send"],
-        order_list=state["unit_orders"],
-        recruitment_choice_list=state["recruitment_choice_list"]
+        unit_orders=state["unit_orders"]
     )
 
 def should_continue(state: UnitState) -> Literal["tool_node", "output_node"]:
