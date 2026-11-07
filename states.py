@@ -1,4 +1,4 @@
-from typing import TypedDict, Annotated, Sequence, List, Optional
+from typing import TypedDict, Annotated, Sequence, List, Optional, Literal
 from langgraph.graph.message import add_messages
 from langchain_core.messages import BaseMessage
 
@@ -7,74 +7,51 @@ from tools import AgentMessage
 from strAItegize_common.others.recruitment_choice import RecruitmentChoice
 from strAItegize_common.others.order import Order
 
-# Unit Agents
-class UnitInputState(TypedDict):
+class DecentralizedState(TypedDict):
     units: List[str]
     regions: List[str]
-
-    player_id: str
-    unit_id: str
-    supply_surplus: int = 0
+    recent_events: List[str]
+    
+    input_prompt: Optional[BaseMessage]
     upkeep_phase: bool = False
-    recent_events: List[str]
-
-    unit_messages: Annotated[Sequence[BaseMessage], add_messages]
-
-    unit_orders: dict[str, Order]
-
-class UnitState(TypedDict):
-    units: List[str]
-    regions: List[str]
-
-    player_id: str
-    unit_id: str
-    recent_events: List[str]
-
-    unit_messages: Annotated[Sequence[BaseMessage], add_messages]
-
-    messages_to_send: List[AgentMessage]
-
-    unit_orders: dict[str, Order]
-
-class UnitOutputState(TypedDict):
-    unit_messages: Annotated[Sequence[BaseMessage], add_messages]
-
-    messages_to_send: List[AgentMessage]
-
-    unit_orders: dict[str, Order]
-
-# Region Agents
-class RegionInputState(TypedDict):
-    units: List[str]
-    regions: List[str]
-
-    player_id: str
-    region_id: str
     supply_surplus: int = 0
-    upkeep_phase: bool = False
-    recent_events: List[str]
+    
+    player_id: str
+    init_msg: str
+    
+    blocked_tools: list[str]
+    
+    unit_orders: dict[str, Order]
+    region_recruitment: dict[str, RecruitmentChoice] 
+    
+    agents_messages: dict[str, list[BaseMessage]]
+    agent_types: dict[str, Literal["unit", "region"]]
+    
+    # Navigation variables
+    next_action: Literal["unit", "region", "end"]
+    active_agent: str
+    active_agents: list[str]
+    waiting_agents: list[str]
+    finished_agents: list[str]
+    
+    # Shared channels with AgentState
+    agent_id: Optional[str]
+    agent_type: Optional[Literal["unit", "region"]]
+    agent_messages: Optional[Annotated[Sequence[BaseMessage], add_messages]]
+    messages_to_send: Optional[List[AgentMessage]]
 
-    region_messages: Annotated[Sequence[BaseMessage], add_messages]
-
-    region_recruitment: dict[str, RecruitmentChoice]
-
-class RegionState(TypedDict):
+class AgentState(TypedDict):
+    player_id: str
+    agent_id: str
+    agent_type: Literal["unit", "region"]
+    
     units: List[str]
     regions: List[str]
-
-    player_id: str
-    region_id: str
     recent_events: List[str]
+    blocked_tools: list[str]
 
-    region_messages: Annotated[Sequence[BaseMessage], add_messages]
-
+    agent_messages: Annotated[Sequence[BaseMessage], add_messages]
     messages_to_send: List[AgentMessage]
-
-    region_recruitment: dict[str, RecruitmentChoice]
-
-class RegionOutputState(TypedDict):
-    region_messages: Annotated[Sequence[BaseMessage], add_messages]
-
-    messages_to_send: List[AgentMessage]
-
+    
+    unit_orders: dict[str, Order]
     region_recruitment: dict[str, RecruitmentChoice]

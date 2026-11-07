@@ -1,7 +1,0 @@
-{
-    "dependencies": ["."],
-    "graphs": {
-        "graph": "./graph.py:decentralized_mas"
-    },
-    "env": ".env"
-}
