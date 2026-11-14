@@ -49,7 +49,7 @@ def unit_agent_prompt(player_id: str, unit_id: str, unit_orders: dict[str, Optio
     <Available Tools>
     Tools provided to you fall into 4 categories:
     - Observation Tools: observe_unit, observe_region, get_units, get_regions, get_unit_details - These tools allow you to inspect the current state of the simulation.
-    - Meta Tools: get_players, get_player_conversation, get_order_list, get_recent_events, get_game_rules - These tools allow you to inspect information about the current round and the simulation session, as well as its rules.
+    - Meta Tools: get_players, get_order_list, get_recent_events, get_game_rules - These tools allow you to inspect information about the current round and the simulation session, as well as its rules.
     - Action Tools: MessageAgent, OrderMovement, OrderAttack, OrderSupport, OrderHold - These tools allow you to take strategic actions, and communicate with other agents.
     - Reflection Tools: think_tool - This tool allows you to reflect on gathered information and evaluate possible courses of action.
     </Available Tools>

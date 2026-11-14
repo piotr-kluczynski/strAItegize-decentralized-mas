@@ -87,7 +87,7 @@ def dispatcher_node(state: DecentralizedState) -> DecentralizedState:
             
         waiting = []
 
-    # If there are no more active gents, finish turn
+    # If there are no more active agents, finish turn
     if len(active) == 0:
         return {
             "active_agents": [],
